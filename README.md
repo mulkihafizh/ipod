@@ -10,6 +10,14 @@ A high-fidelity retro iPod Classic music player experience built for modern Andr
 
 ---
 
+## 📱 Screenshots
+
+| Now Playing Screen | Fluid Lyrics Mode | Settings & Customization |
+| :---: | :---: | :---: |
+| <img src="screenshots/now_playing.jpg" width="260" alt="Now Playing Screen" /> | <img src="screenshots/lyrics.jpg" width="260" alt="Modern Fluid Lyrics" /> | <img src="screenshots/settings.jpg" width="260" alt="iPod Settings & Customization" /> |
+
+---
+
 ## ✨ Features
 
 - 🎧 **Authentic iPod Classic Experience**:
