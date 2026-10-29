@@ -115,32 +115,18 @@ fun CustomImageStickerView(filePath: String?) {
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color.White)
-            .border(2.dp, Color(0xFFF0F0F0), RoundedCornerShape(10.dp))
-            .padding(2.5.dp),
+        modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         if (bitmap != null) {
             Image(
                 bitmap = bitmap,
                 contentDescription = "Custom Sticker",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
             )
         } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFFE0E0E0)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("PHOTO", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-            }
+            Text("STICKER", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
         }
     }
 }

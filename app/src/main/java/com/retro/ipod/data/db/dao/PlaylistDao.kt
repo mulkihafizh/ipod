@@ -89,4 +89,16 @@ interface PlaylistDao {
      */
     @Query("SELECT * FROM playlists ORDER BY createdAt DESC")
     suspend fun getAllPlaylistsDirect(): List<PlaylistEntity>
+
+    /**
+     * Completely removes all "On-The-Go" playlists.
+     */
+    @Query("DELETE FROM playlists WHERE LOWER(TRIM(name)) = 'on-the-go' OR LOWER(TRIM(name)) = 'on the go'")
+    suspend fun deleteAllOnTheGoPlaylists()
+
+    /**
+     * Cleans up any orphan song cross-references whose playlist was removed.
+     */
+    @Query("DELETE FROM playlist_song_cross_ref WHERE playlistId NOT IN (SELECT playlistId FROM playlists)")
+    suspend fun cleanupOrphanPlaylistCrossReferences()
 }

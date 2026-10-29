@@ -276,6 +276,7 @@ fun IpodMasterApp(
     val permissionsToRequest = mutableListOf<String>().apply {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.READ_MEDIA_AUDIO)
+            add(Manifest.permission.READ_MEDIA_IMAGES)
             add(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             add(Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -287,12 +288,13 @@ fun IpodMasterApp(
     ) { }
 
     LaunchedEffect(Unit) {
-        val hasAudio = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+        val hasMedia = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
         } else {
             ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
         }
-        if (!hasAudio) {
+        if (!hasMedia) {
             launcher.launch(permissionsToRequest)
         }
     }
@@ -327,13 +329,10 @@ fun IpodMasterApp(
 
     var showDeletePlaylistDialog by remember { mutableStateOf<PlaylistEntity?>(null) }
 
-    // Ensure "On-The-Go" exists in database so it has a valid ID and supports foreign keys
-    LaunchedEffect(playlists) {
-        if (playlists.none { it.name.equals("On-The-Go", ignoreCase = true) }) {
-            playlistDao.insertPlaylist(
-                PlaylistEntity(name = "On-The-Go", createdAt = 0L)
-            )
-        }
+    // Completely remove all "On-The-Go" playlists from the database
+    LaunchedEffect(Unit) {
+        playlistDao.deleteAllOnTheGoPlaylists()
+        playlistDao.cleanupOrphanPlaylistCrossReferences()
     }
 
     val m3uPickerLauncher = rememberLauncherForActivityResult(
@@ -855,7 +854,16 @@ fun IpodMasterApp(
                     shuffleMode = playbackState.shuffleMode,
                     repeatMode = playbackState.repeatMode,
                     palette = screenPalette,
-                    onDacBadgeClick = { showDacModal = true }
+                    onDacBadgeClick = { showDacModal = true },
+                    onHeaderClick = {
+                        if (playbackState.isPlaying || playbackState.currentSong != null) {
+                            when (currentScreen) {
+                                is IpodScreen.NowPlayingScreen -> navigateTo(IpodScreen.LyricsScreen)
+                                is IpodScreen.LyricsScreen -> navigateTo(IpodScreen.NowPlayingScreen)
+                                else -> navigateTo(IpodScreen.NowPlayingScreen)
+                            }
+                        }
+                    }
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -1299,20 +1307,18 @@ fun IpodMasterApp(
                                         }
                                     )
                                 )
-                                if (!screen.name.equals("On-The-Go", ignoreCase = true)) {
-                                    add(
-                                        IpodMenuItem(
-                                            id = "delete_playlist",
-                                            title = "Delete Playlist",
-                                            subtitle = "Remove this playlist",
-                                            artworkSongPath = null,
-                                            hasSubMenu = false,
-                                            onClick = {
-                                                showDeletePlaylistDialog = currentPl ?: PlaylistEntity(playlistId = screen.playlistId, name = screen.name)
-                                            }
-                                        )
+                                add(
+                                    IpodMenuItem(
+                                        id = "delete_playlist",
+                                        title = "Delete Playlist",
+                                        subtitle = "Remove this playlist",
+                                        artworkSongPath = null,
+                                        hasSubMenu = false,
+                                        onClick = {
+                                            showDeletePlaylistDialog = currentPl ?: PlaylistEntity(playlistId = screen.playlistId, name = screen.name)
+                                        }
                                     )
-                                }
+                                )
 
                                 playlistSongs.forEach { song ->
                                     add(
@@ -1975,12 +1981,22 @@ fun IpodMiniHeaderBar(
     shuffleMode: Boolean,
     repeatMode: Int,
     palette: com.retro.ipod.ui.theme.IpodScreenPalette,
-    onDacBadgeClick: () -> Unit
+    onDacBadgeClick: () -> Unit,
+    onHeaderClick: (() -> Unit)? = null
 ) {
-    Surface(
-        modifier = Modifier
+    val surfaceModifier = if (onHeaderClick != null) {
+        Modifier
             .fillMaxWidth()
-            .height(24.dp),
+            .height(24.dp)
+            .clickable { onHeaderClick() }
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .height(24.dp)
+    }
+
+    Surface(
+        modifier = surfaceModifier,
         color = palette.headerBarBackground,
         shape = RoundedCornerShape(4.dp)
     ) {

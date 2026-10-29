@@ -56,23 +56,9 @@ fun AuroraMeshBackground(
         if (coverBitmap != null) {
             resolvedBitmap = coverBitmap
         } else if (!artworkFilePath.isNullOrBlank()) {
-            withContext(Dispatchers.IO) {
-                try {
-                    val file = File(artworkFilePath)
-                    if (file.exists()) {
-                        val retriever = MediaMetadataRetriever()
-                        retriever.setDataSource(file.absolutePath)
-                        val rawPic = retriever.embeddedPicture
-                        retriever.release()
-                        if (rawPic != null) {
-                            val bmp = BitmapFactory.decodeByteArray(rawPic, 0, rawPic.size)
-                            resolvedBitmap = bmp
-                        }
-                    }
-                } catch (_: Exception) {
-                    resolvedBitmap = null
-                }
-            }
+            resolvedBitmap = com.retro.ipod.data.art.CoverArtResolver.loadBitmap(artworkFilePath)
+        } else {
+            resolvedBitmap = null
         }
     }
 

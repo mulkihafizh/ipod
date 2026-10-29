@@ -66,26 +66,8 @@ fun AlbumArtView(
 
     LaunchedEffect(filePath) {
         if (!filePath.isNullOrBlank()) {
-            withContext(Dispatchers.IO) {
-                try {
-                    val file = File(filePath)
-                    if (file.exists()) {
-                        val retriever = MediaMetadataRetriever()
-                        retriever.setDataSource(file.absolutePath)
-                        val rawBytes = retriever.embeddedPicture
-                        retriever.release()
-                        if (rawBytes != null) {
-                            val bmp = android.graphics.BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size)
-                            embeddedArtBitmap = bmp
-                        } else {
-                            embeddedArtBitmap = null
-                        }
-                    }
-                } catch (e: Exception) {
-                    embeddedArtBitmap = null
-                }
-                loadAttempted = true
-            }
+            embeddedArtBitmap = com.retro.ipod.data.art.CoverArtResolver.loadBitmap(filePath)
+            loadAttempted = true
         } else {
             embeddedArtBitmap = null
             loadAttempted = true
