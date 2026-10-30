@@ -29,6 +29,9 @@ object CoverArtResolver {
 
     private const val TAG = "CoverArtResolver"
     private val memoryCache = LruCache<String, Bitmap>(40)
+    private val folderArtCache = LruCache<String, File>(150)
+    private val negativeFolderCache = LruCache<String, Boolean>(150)
+    private val notificationBytesCache = LruCache<String, ByteArray>(30)
 
     private val DIRECT_NAMES = listOf(
         "cover.jpg", "Cover.jpg", "COVER.JPG",
@@ -55,22 +58,34 @@ object CoverArtResolver {
         val parentPath = cleanPath.substringBeforeLast('/', "")
         if (parentPath.isBlank()) return null
 
+        synchronized(folderArtCache) {
+            val cached = folderArtCache.get(parentPath)
+            if (cached != null) return cached
+            if (negativeFolderCache.get(parentPath) == true) return null
+        }
+
         val parentDir = File(parentPath)
+        if (!parentDir.exists() || !parentDir.isDirectory) {
+            synchronized(folderArtCache) { negativeFolderCache.put(parentPath, true) }
+            return null
+        }
         val grandParentDir = parentDir.parentFile
 
         // 1. Direct file probes on parent directory
         for (name in DIRECT_NAMES) {
             val candidate = File(parentDir, name)
             if (candidate.exists() && candidate.canRead()) {
+                synchronized(folderArtCache) { folderArtCache.put(parentPath, candidate) }
                 return candidate
             }
         }
 
         // 2. Direct file probes on grandparent directory (for CD 1 / Disc 1 subfolders)
-        if (grandParentDir != null && grandParentDir.exists()) {
+        if (grandParentDir != null && grandParentDir.exists() && grandParentDir.isDirectory) {
             for (name in DIRECT_NAMES) {
                 val candidate = File(grandParentDir, name)
                 if (candidate.exists() && candidate.canRead()) {
+                    synchronized(folderArtCache) { folderArtCache.put(parentPath, candidate) }
                     return candidate
                 }
             }
@@ -91,14 +106,23 @@ object CoverArtResolver {
                     nameWithoutExt.contains("album") ||
                     nameWithoutExt.contains("art")
                 }
-                if (match != null && match.canRead()) return match
+                if (match != null && match.canRead()) {
+                    synchronized(folderArtCache) { folderArtCache.put(parentPath, match) }
+                    return match
+                }
 
                 // Any image in the folder
                 val anyImg = files.firstOrNull { it.isFile && it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp") }
-                if (anyImg != null && anyImg.canRead()) return anyImg
+                if (anyImg != null && anyImg.canRead()) {
+                    synchronized(folderArtCache) { folderArtCache.put(parentPath, anyImg) }
+                    return anyImg
+                }
             }
         } catch (_: Exception) {}
 
+        synchronized(folderArtCache) {
+            negativeFolderCache.put(parentPath, true)
+        }
         return null
     }
 
@@ -264,37 +288,50 @@ object CoverArtResolver {
 
     /**
      * Synchronous / fast retrieval for notification payload.
+     * Should be called from a background thread (e.g. Dispatchers.IO).
      */
     fun getNotificationArtworkBytes(audioFilePath: String?): ByteArray? {
         if (audioFilePath.isNullOrBlank()) return null
+
+        synchronized(notificationBytesCache) {
+            val cachedBytes = notificationBytesCache.get(audioFilePath)
+            if (cachedBytes != null) return cachedBytes
+        }
+
         synchronized(memoryCache) {
             val cached = memoryCache.get(audioFilePath)
             if (cached != null && !cached.isRecycled) {
                 val stream = ByteArrayOutputStream()
                 cached.compress(Bitmap.CompressFormat.JPEG, 85, stream)
-                return stream.toByteArray()
+                val bytes = stream.toByteArray()
+                synchronized(notificationBytesCache) { notificationBytesCache.put(audioFilePath, bytes) }
+                return bytes
             }
         }
 
-        // 1. Check embedded bytes
-        val embeddedBytes = getEmbeddedPictureBytes(audioFilePath)
-        if (embeddedBytes != null) {
-            val bmp = decodeSampledBitmap(embeddedBytes, 512)
-            if (bmp != null) {
-                val stream = ByteArrayOutputStream()
-                bmp.compress(Bitmap.CompressFormat.JPEG, 85, stream)
-                return stream.toByteArray()
-            }
-        }
-
-        // 2. Direct file
+        // 1. Direct file check first (fast with directory cache)
         val file = findCoverArtFile(audioFilePath)
         if (file != null && file.exists()) {
             val bmp = decodeSampledBitmap(file, 512)
             if (bmp != null) {
                 val stream = ByteArrayOutputStream()
                 bmp.compress(Bitmap.CompressFormat.JPEG, 85, stream)
-                return stream.toByteArray()
+                val bytes = stream.toByteArray()
+                synchronized(notificationBytesCache) { notificationBytesCache.put(audioFilePath, bytes) }
+                return bytes
+            }
+        }
+
+        // 2. Embedded ID3 / FLAC picture bytes
+        val embeddedBytes = getEmbeddedPictureBytes(audioFilePath)
+        if (embeddedBytes != null) {
+            val bmp = decodeSampledBitmap(embeddedBytes, 512)
+            if (bmp != null) {
+                val stream = ByteArrayOutputStream()
+                bmp.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+                val bytes = stream.toByteArray()
+                synchronized(notificationBytesCache) { notificationBytesCache.put(audioFilePath, bytes) }
+                return bytes
             }
         }
 
@@ -303,7 +340,9 @@ object CoverArtResolver {
         if (bmp != null) {
             val stream = ByteArrayOutputStream()
             bmp.compress(Bitmap.CompressFormat.JPEG, 85, stream)
-            return stream.toByteArray()
+            val bytes = stream.toByteArray()
+            synchronized(notificationBytesCache) { notificationBytesCache.put(audioFilePath, bytes) }
+            return bytes
         }
 
         return null

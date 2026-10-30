@@ -204,28 +204,17 @@ class MusicPlayerManager(
         newQueue.forEach { songLookup[it.id.toString()] = it }
 
         val mediaItems = newQueue.map { s ->
-            val metadataBuilder = MediaMetadata.Builder()
-                .setTitle(s.title)
-                .setArtist(s.artist)
-                .setAlbumTitle(s.album)
-                .setDisplayTitle(s.title)
-
-            val artworkUri = com.retro.ipod.data.art.CoverArtResolver.getArtworkUri(s.filePath)
-            if (artworkUri != null) {
-                metadataBuilder.setArtworkUri(artworkUri)
-            }
-
-            if (s.id == song.id) {
-                val artBytes = com.retro.ipod.data.art.CoverArtResolver.getNotificationArtworkBytes(s.filePath)
-                if (artBytes != null) {
-                    metadataBuilder.setArtworkData(artBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
-                }
-            }
-
             MediaItem.Builder()
                 .setMediaId(s.id.toString())
                 .setUri(Uri.fromFile(File(s.filePath)))
-                .setMediaMetadata(metadataBuilder.build())
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(s.title)
+                        .setArtist(s.artist)
+                        .setAlbumTitle(s.album)
+                        .setDisplayTitle(s.title)
+                        .build()
+                )
                 .build()
         }
 

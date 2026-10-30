@@ -6,6 +6,8 @@ import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -20,6 +22,14 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.retro.ipod.MainActivity
 import com.retro.ipod.R
+import com.retro.ipod.data.art.CoverArtResolver
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Background Foreground Service managing the ExoPlayer instance and system MediaSession.
@@ -33,6 +43,8 @@ class MusicPlaybackService : MediaSessionService() {
         const val ACTION_CYCLE_REPEAT = "com.retro.ipod.playback.ACTION_CYCLE_REPEAT"
     }
 
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var artworkJob: Job? = null
     private var player: ExoPlayer? = null
     private var mediaSession: MediaSession? = null
 
@@ -141,7 +153,7 @@ class MusicPlaybackService : MediaSessionService() {
             .setCallback(sessionCallback)
             .build()
 
-        // Sync custom layout whenever player's shuffle mode or repeat mode changes
+        // Sync custom layout whenever player's shuffle mode or repeat mode changes, and load artwork asynchronously
         exoPlayer.addListener(object : Player.Listener {
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                 val p = player ?: return
@@ -151,6 +163,24 @@ class MusicPlaybackService : MediaSessionService() {
             override fun onRepeatModeChanged(repeatMode: Int) {
                 val p = player ?: return
                 updateCustomLayout(p.shuffleModeEnabled, repeatMode)
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                artworkJob?.cancel()
+                val currentItem = mediaItem ?: return
+                val filePath = currentItem.localConfiguration?.uri?.path ?: return
+
+                artworkJob = serviceScope.launch {
+                    val artBytes = withContext(Dispatchers.IO) {
+                        CoverArtResolver.getNotificationArtworkBytes(filePath)
+                    }
+                    if (artBytes != null && exoPlayer.currentMediaItem == currentItem) {
+                        val updatedMeta = currentItem.mediaMetadata.buildUpon()
+                            .setArtworkData(artBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                            .build()
+                        exoPlayer.setPlaylistMetadata(updatedMeta)
+                    }
+                }
             }
         })
 
@@ -174,6 +204,8 @@ class MusicPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        artworkJob?.cancel()
+        serviceScope.cancel()
         mediaSession?.run {
             player.release()
             release()
