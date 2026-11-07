@@ -56,6 +56,7 @@ fun ClickWheel(
     wheelSize: Dp = 230.dp,
     centerButtonSize: Dp = 82.dp,
     theme: SkinTheme = SkinTheme.CLASSIC_WHITE,
+    customWheelColor: Color? = null,
     hapticEnabled: Boolean = true,
     onRotateStep: (isClockwise: Boolean) -> Unit = {},
     onCenterClick: () -> Unit = {},
@@ -70,6 +71,41 @@ fun ClickWheel(
 
     // Theme color palettes
     val (outerWheelBrush, centerButtonBrush, borderColor, textColor) = when (theme) {
+        SkinTheme.CUSTOM -> {
+            val wheelBase = customWheelColor ?: Color(0xFFF9F9FA)
+            val isLightWheel = (wheelBase.red * 0.299f + wheelBase.green * 0.587f + wheelBase.blue * 0.114f) > 0.5f
+
+            val centerBase = if (isLightWheel) {
+                Color(
+                    red = (wheelBase.red * 1.05f).coerceIn(0f, 1f),
+                    green = (wheelBase.green * 1.05f).coerceIn(0f, 1f),
+                    blue = (wheelBase.blue * 1.05f).coerceIn(0f, 1f)
+                )
+            } else {
+                Color(
+                    red = (wheelBase.red * 1.15f).coerceIn(0f, 1f),
+                    green = (wheelBase.green * 1.15f).coerceIn(0f, 1f),
+                    blue = (wheelBase.blue * 1.15f).coerceIn(0f, 1f)
+                )
+            }
+
+            val wheelOuterShade = Color(
+                red = (wheelBase.red * 0.92f).coerceIn(0f, 1f),
+                green = (wheelBase.green * 0.92f).coerceIn(0f, 1f),
+                blue = (wheelBase.blue * 0.92f).coerceIn(0f, 1f)
+            )
+
+            QuadWheelColors(
+                outerBrush = Brush.radialGradient(listOf(wheelBase, wheelOuterShade)),
+                centerBrush = Brush.radialGradient(listOf(centerBase, wheelBase)),
+                border = Color(
+                    red = (wheelBase.red * 0.8f).coerceIn(0f, 1f),
+                    green = (wheelBase.green * 0.8f).coerceIn(0f, 1f),
+                    blue = (wheelBase.blue * 0.8f).coerceIn(0f, 1f)
+                ),
+                text = if (isLightWheel) Color(0xFF616161) else Color(0xFFEEEEEE)
+            )
+        }
         SkinTheme.U2_EDITION -> QuadWheelColors(
             outerBrush = Brush.radialGradient(listOf(Color(0xFFE53935), Color(0xFFC62828))),
             centerBrush = Brush.radialGradient(listOf(Color(0xFF2C2C2E), Color(0xFF1C1C1E))),

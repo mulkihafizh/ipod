@@ -34,9 +34,42 @@ fun IpodChassis(
     wheelContent: @Composable () -> Unit,
     stickersContent: (@Composable () -> Unit)? = null,
     overlayContent: (@Composable () -> Unit)? = null,
+    customSkinColor: Color? = null,
     modifier: Modifier = Modifier
 ) {
     val chassisColors = when (theme) {
+        SkinTheme.CUSTOM -> {
+            val baseColor = customSkinColor ?: Color(0xFF1976D2)
+            val topHighlight = Color(
+                red = (baseColor.red * 1.08f).coerceIn(0f, 1f),
+                green = (baseColor.green * 1.08f).coerceIn(0f, 1f),
+                blue = (baseColor.blue * 1.08f).coerceIn(0f, 1f)
+            )
+            val midTone = Color(
+                red = (baseColor.red * 0.92f).coerceIn(0f, 1f),
+                green = (baseColor.green * 0.92f).coerceIn(0f, 1f),
+                blue = (baseColor.blue * 0.92f).coerceIn(0f, 1f)
+            )
+            val bottomShadow = Color(
+                red = (baseColor.red * 0.76f).coerceIn(0f, 1f),
+                green = (baseColor.green * 0.76f).coerceIn(0f, 1f),
+                blue = (baseColor.blue * 0.76f).coerceIn(0f, 1f)
+            )
+            ChassisThemeColors(
+                background = Brush.verticalGradient(listOf(topHighlight, midTone, bottomShadow)),
+                chamferBorder = Color(
+                    red = (baseColor.red * 0.65f).coerceIn(0f, 1f),
+                    green = (baseColor.green * 0.65f).coerceIn(0f, 1f),
+                    blue = (baseColor.blue * 0.65f).coerceIn(0f, 1f)
+                ),
+                innerBezel = Color(0xFF141418),
+                bezelBorder = Color(
+                    red = (baseColor.red * 0.5f).coerceIn(0f, 1f),
+                    green = (baseColor.green * 0.5f).coerceIn(0f, 1f),
+                    blue = (baseColor.blue * 0.5f).coerceIn(0f, 1f)
+                )
+            )
+        }
         SkinTheme.U2_EDITION -> ChassisThemeColors(
             background = Brush.verticalGradient(listOf(Color(0xFF1E1E22), Color(0xFF121214), Color(0xFF0C0C0E))),
             chamferBorder = Color(0xFF2C2C34),

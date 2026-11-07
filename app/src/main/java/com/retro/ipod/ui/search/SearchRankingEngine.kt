@@ -9,7 +9,7 @@ import kotlin.math.min
  */
 enum class SearchScope(val label: String) {
     ALL("All"),
-    TRACKS("Tracks"),
+    TRACKS("Songs"),
     ALBUMS("Albums"),
     ARTISTS("Artists"),
     PLAYLISTS("Playlists")

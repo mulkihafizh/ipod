@@ -4,6 +4,10 @@ import android.app.Application
 import com.retro.ipod.data.db.IpodDatabase
 import com.retro.ipod.data.scanner.AudioMetadataScanner
 import com.retro.ipod.data.settings.AppSettingsRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Base Application class initializing global singletons for Room Database,
@@ -34,6 +38,16 @@ class IpodApplication : Application() {
         metadataScanner = AudioMetadataScanner(this)
         playerManager = com.retro.ipod.playback.MusicPlayerManager(this)
         usbAudioDeviceManager = com.retro.ipod.playback.audio.UsbAudioDeviceManager(this, settingsRepository)
+
+        // Automatically push theme & appearance updates immediately to home screen widgets
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main).launch {
+            settingsRepository.appSettingsFlow.collect { updatedSettings ->
+                com.retro.ipod.widget.IpodWidgetProvider.updateAllWidgets(
+                    context = this@IpodApplication,
+                    settings = updatedSettings
+                )
+            }
+        }
     }
 
     companion object {

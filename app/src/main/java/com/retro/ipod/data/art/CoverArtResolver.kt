@@ -28,7 +28,17 @@ import java.io.FileInputStream
 object CoverArtResolver {
 
     private const val TAG = "CoverArtResolver"
-    private val memoryCache = LruCache<String, Bitmap>(40)
+
+    // Dynamically sized in-memory LRU cache based on 1/8th of available runtime memory (16MB - 48MB)
+    private val maxMemoryKb = (Runtime.getRuntime().maxMemory() / 1024).toInt()
+    private val cacheSizeKb = (maxMemoryKb / 8).coerceIn(16 * 1024, 48 * 1024)
+
+    private val memoryCache = object : LruCache<String, Bitmap>(cacheSizeKb) {
+        override fun sizeOf(key: String, bitmap: Bitmap): Int {
+            return (bitmap.byteCount / 1024).coerceAtLeast(1)
+        }
+    }
+
     private val folderArtCache = LruCache<String, File>(150)
     private val negativeFolderCache = LruCache<String, Boolean>(150)
     private val notificationBytesCache = LruCache<String, ByteArray>(30)
@@ -186,7 +196,8 @@ object CoverArtResolver {
                     try {
                         val artUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId)
                         contentResolver.openInputStream(artUri)?.use { input ->
-                            val bmp = BitmapFactory.decodeStream(input)
+                            val bytes = input.readBytes()
+                            val bmp = decodeSampledBitmap(bytes, maxDimension)
                             if (bmp != null) return bmp
                         }
                     } catch (_: Exception) {}
@@ -229,7 +240,8 @@ object CoverArtResolver {
                     if (bestId != null) {
                         val imgUri = ContentUris.withAppendedId(imgCollection, bestId)
                         contentResolver.openInputStream(imgUri)?.use { input ->
-                            val bmp = BitmapFactory.decodeStream(input)
+                            val bytes = input.readBytes()
+                            val bmp = decodeSampledBitmap(bytes, maxDimension)
                             if (bmp != null) return bmp
                         }
                     }
@@ -284,6 +296,18 @@ object CoverArtResolver {
         }
 
         return@withContext bitmap
+    }
+
+    /**
+     * Fast synchronous check of the in-memory Bitmap cache.
+     */
+    fun getFromMemoryCache(audioFilePath: String?): Bitmap? {
+        if (audioFilePath.isNullOrBlank()) return null
+        synchronized(memoryCache) {
+            val cached = memoryCache.get(audioFilePath)
+            if (cached != null && !cached.isRecycled) return cached
+        }
+        return null
     }
 
     /**

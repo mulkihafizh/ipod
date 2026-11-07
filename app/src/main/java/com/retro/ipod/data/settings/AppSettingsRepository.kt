@@ -8,11 +8,13 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import java.io.IOException
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "ipod_settings")
@@ -36,7 +38,19 @@ class AppSettingsRepository(
         val HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback")
         val MUSIC_FOLDER_PATH = stringPreferencesKey("music_folder_path")
         val MUSIC_FOLDER_URI = stringPreferencesKey("music_folder_uri")
+        val CUSTOM_SKIN_COLOR = longPreferencesKey("custom_skin_color")
+        val CUSTOM_WHEEL_COLOR = longPreferencesKey("custom_wheel_color")
+        val CUSTOM_SCREEN_IS_DARK = booleanPreferencesKey("custom_screen_is_dark")
     }
+
+    private val repoScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+
+    /**
+     * Cached in-memory copy of current settings for synchronous zero-latency lookups.
+     */
+    @Volatile
+    var currentSettings: AppSettings = AppSettings()
+        private set
 
     /**
      * Flow of [AppSettings] emitted whenever any setting is modified.
@@ -81,6 +95,9 @@ class AppSettingsRepository(
             val hapticFeedback = preferences[PreferencesKeys.HAPTIC_FEEDBACK] ?: true
             val musicFolderPath = preferences[PreferencesKeys.MUSIC_FOLDER_PATH]
             val musicFolderUri = preferences[PreferencesKeys.MUSIC_FOLDER_URI]
+            val customSkinColor = preferences[PreferencesKeys.CUSTOM_SKIN_COLOR] ?: 0xFF1976D2L
+            val customWheelColor = preferences[PreferencesKeys.CUSTOM_WHEEL_COLOR] ?: 0xFFF9F9FAL
+            val customScreenIsDark = preferences[PreferencesKeys.CUSTOM_SCREEN_IS_DARK] ?: false
 
             AppSettings(
                 usbExclusiveMode = usbExclusiveMode,
@@ -93,9 +110,20 @@ class AppSettingsRepository(
                 skinTheme = skinTheme,
                 hapticFeedbackEnabled = hapticFeedback,
                 musicFolderPath = musicFolderPath,
-                musicFolderUri = musicFolderUri
+                musicFolderUri = musicFolderUri,
+                customSkinColor = customSkinColor,
+                customWheelColor = customWheelColor,
+                customScreenIsDark = customScreenIsDark
             )
         }
+
+    init {
+        repoScope.launch {
+            appSettingsFlow.collect {
+                currentSettings = it
+            }
+        }
+    }
 
     /**
      * Toggles exclusive USB DAC claim mode (bypasses Android AudioFlinger mixer).
@@ -164,9 +192,71 @@ class AppSettingsRepository(
      * Updates the iPod casing skin theme.
      */
     suspend fun setSkinTheme(theme: SkinTheme) {
+        val updated = currentSettings.copy(skinTheme = theme)
+        currentSettings = updated
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.SKIN_THEME] = theme.name
         }
+        com.retro.ipod.widget.IpodWidgetProvider.updateAllWidgets(context, settings = updated)
+    }
+
+    /**
+     * Updates custom color theme settings (skin chassis, wheel color, and dark/light LCD mode).
+     */
+    suspend fun setCustomThemeColors(skinColor: Long, wheelColor: Long, screenIsDark: Boolean) {
+        val updated = currentSettings.copy(
+            skinTheme = SkinTheme.CUSTOM,
+            customSkinColor = skinColor,
+            customWheelColor = wheelColor,
+            customScreenIsDark = screenIsDark
+        )
+        currentSettings = updated
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SKIN_THEME] = SkinTheme.CUSTOM.name
+            preferences[PreferencesKeys.CUSTOM_SKIN_COLOR] = skinColor
+            preferences[PreferencesKeys.CUSTOM_WHEEL_COLOR] = wheelColor
+            preferences[PreferencesKeys.CUSTOM_SCREEN_IS_DARK] = screenIsDark
+        }
+        com.retro.ipod.widget.IpodWidgetProvider.updateAllWidgets(context, settings = updated)
+    }
+
+    suspend fun setCustomSkinColor(skinColor: Long) {
+        val updated = currentSettings.copy(
+            skinTheme = SkinTheme.CUSTOM,
+            customSkinColor = skinColor
+        )
+        currentSettings = updated
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SKIN_THEME] = SkinTheme.CUSTOM.name
+            preferences[PreferencesKeys.CUSTOM_SKIN_COLOR] = skinColor
+        }
+        com.retro.ipod.widget.IpodWidgetProvider.updateAllWidgets(context, settings = updated)
+    }
+
+    suspend fun setCustomWheelColor(wheelColor: Long) {
+        val updated = currentSettings.copy(
+            skinTheme = SkinTheme.CUSTOM,
+            customWheelColor = wheelColor
+        )
+        currentSettings = updated
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SKIN_THEME] = SkinTheme.CUSTOM.name
+            preferences[PreferencesKeys.CUSTOM_WHEEL_COLOR] = wheelColor
+        }
+        com.retro.ipod.widget.IpodWidgetProvider.updateAllWidgets(context, settings = updated)
+    }
+
+    suspend fun setCustomScreenIsDark(screenIsDark: Boolean) {
+        val updated = currentSettings.copy(
+            skinTheme = SkinTheme.CUSTOM,
+            customScreenIsDark = screenIsDark
+        )
+        currentSettings = updated
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SKIN_THEME] = SkinTheme.CUSTOM.name
+            preferences[PreferencesKeys.CUSTOM_SCREEN_IS_DARK] = screenIsDark
+        }
+        com.retro.ipod.widget.IpodWidgetProvider.updateAllWidgets(context, settings = updated)
     }
 
     /**

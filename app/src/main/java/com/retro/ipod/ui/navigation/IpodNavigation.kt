@@ -21,7 +21,10 @@ sealed interface IpodScreen {
     object AudioSettings : IpodScreen
     object LyricsSettings : IpodScreen
     object ThemeSettings : IpodScreen
+    object CustomThemeEditor : IpodScreen
     object StickerSettings : IpodScreen
+    object PresetStickersPicker : IpodScreen
+    object UsbDacDetails : IpodScreen
 }
 
 /**

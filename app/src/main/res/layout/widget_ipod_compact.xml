@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="96dp"
+    android:clipChildren="true"
+    android:clipToPadding="true">
+
+    <!-- Layer 1: Dynamic Theme Chassis Background -->
+    <ImageView
+        android:id="@+id/widget_chassis_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY" />
+
+    <!-- Layer 2: Main Widget Content -->
+    <LinearLayout
+        android:id="@+id/widget_content_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp">
+
+        <!-- Left Section: Album Art & Song Details -->
+        <LinearLayout
+            android:id="@+id/widget_left_section"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:id="@+id/widget_album_art"
+                android:layout_width="62dp"
+                android:layout_height="62dp"
+                android:scaleType="centerCrop" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginStart="10dp"
+                android:layout_marginEnd="8dp">
+
+                <TextView
+                    android:id="@+id/widget_song_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="No Track Playing"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:singleLine="true"
+                    android:ellipsize="marquee" />
+
+                <TextView
+                    android:id="@+id/widget_artist_album"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Retro iPod Classic"
+                    android:textColor="#FFA2A2AC"
+                    android:textSize="10.5sp"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/widget_format_badge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_widget_badge"
+                        android:paddingStart="5dp"
+                        android:paddingEnd="5dp"
+                        android:paddingTop="1dp"
+                        android:paddingBottom="1dp"
+                        android:text="BIT-PERFECT"
+                        android:textColor="#FF4FC3F7"
+                        android:textSize="8.5sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Right Section: Mini iPod Click Wheel Control -->
+        <FrameLayout
+            android:id="@+id/widget_wheel_container"
+            android:layout_width="84dp"
+            android:layout_height="84dp"
+            android:layout_gravity="center_vertical">
+
+            <!-- Dynamic Click Wheel Outer Disc Background -->
+            <ImageView
+                android:id="@+id/widget_wheel_bg"
+                android:layout_width="84dp"
+                android:layout_height="84dp"
+                android:scaleType="fitCenter" />
+
+            <!-- Wheel Quadrant and Center Controls Overlay -->
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <!-- Top: MENU (Opens App) -->
+                <TextView
+                    android:id="@+id/widget_btn_menu"
+                    android:layout_width="48dp"
+                    android:layout_height="24dp"
+                    android:layout_alignParentTop="true"
+                    android:layout_centerHorizontal="true"
+                    android:gravity="center"
+                    android:text="MENU"
+                    android:textColor="#FF616161"
+                    android:textSize="8sp"
+                    android:textStyle="bold" />
+
+                <!-- Left: Previous (|<<) -->
+                <ImageView
+                    android:id="@+id/widget_btn_prev"
+                    android:layout_width="24dp"
+                    android:layout_height="48dp"
+                    android:layout_alignParentStart="true"
+                    android:layout_centerVertical="true"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="2dp"
+                    android:scaleType="centerInside"
+                    android:src="@drawable/media3_notification_seek_to_previous"
+                    android:tint="#FF616161" />
+
+                <!-- Right: Next (>>|) -->
+                <ImageView
+                    android:id="@+id/widget_btn_next"
+                    android:layout_width="24dp"
+                    android:layout_height="48dp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:paddingStart="2dp"
+                    android:paddingEnd="4dp"
+                    android:scaleType="centerInside"
+                    android:src="@drawable/media3_notification_seek_to_next"
+                    android:tint="#FF616161" />
+
+                <!-- Bottom: Play/Pause Button (>||) - Dedicated single play/pause control on wheel -->
+                <ImageView
+                    android:id="@+id/widget_btn_play_pause_bottom"
+                    android:layout_width="48dp"
+                    android:layout_height="24dp"
+                    android:layout_alignParentBottom="true"
+                    android:layout_centerHorizontal="true"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:scaleType="centerInside"
+                    android:src="@drawable/media3_notification_play"
+                    android:tint="#FF616161" />
+
+                <!-- Center: Tactile Center Button (Smooth concave Select button matching authentic iPod) -->
+                <ImageView
+                    android:id="@+id/widget_btn_center"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_centerInParent="true"
+                    android:scaleType="fitCenter" />
+
+            </RelativeLayout>
+        </FrameLayout>
+    </LinearLayout>
+</FrameLayout>

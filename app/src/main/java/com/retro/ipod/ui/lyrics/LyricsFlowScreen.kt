@@ -357,9 +357,12 @@ private fun ModernFlowLyricLineView(
                 horizontalArrangement = if (isRightAligned) Arrangement.End else Arrangement.Start,
                 verticalArrangement = Arrangement.Center
             ) {
-                line.words.forEach { word ->
+                line.words.forEachIndexed { wordIndex, word ->
+                    val isLastWord = wordIndex == line.words.lastIndex
                     SyllableWordView(
                         word = word,
+                        isLastWordOfLine = isLastWord,
+                        isLineActive = isActive,
                         currentPositionMs = currentPositionMs,
                         glowEnabled = glowEnabled,
                         fontSizeSp = 24f * fontScale
@@ -415,6 +418,8 @@ private fun ModernFlowLyricLineView(
 @Composable
 private fun SyllableWordView(
     word: LyricWord,
+    isLastWordOfLine: Boolean = false,
+    isLineActive: Boolean = true,
     currentPositionMs: Long,
     glowEnabled: Boolean,
     fontSizeSp: Float
@@ -424,25 +429,27 @@ private fun SyllableWordView(
 
     val isSung = word.isPast(currentPositionMs)
     val isSinging = word.isCurrentlySung(currentPositionMs)
+    // If it's the last word of the line and the line hasn't changed to the next line yet, keep it highlighted
+    val isHighlightActive = isSinging || (isLastWordOfLine && isLineActive && currentPositionMs >= word.startTimeMs)
 
     val wordLift by animateFloatAsState(
-        targetValue = if (isSinging) -2f else 0f,
+        targetValue = if (isHighlightActive) -2f else 0f,
         animationSpec = tween(durationMillis = 100),
         label = "wordLift"
     )
 
     val wordScale by animateFloatAsState(
-        targetValue = if (isSinging) 1.10f else 1.0f,
+        targetValue = if (isHighlightActive) 1.10f else 1.0f,
         animationSpec = tween(durationMillis = 100),
         label = "wordScale"
     )
 
-    val textShadow = if (isSinging && glowEnabled) {
+    val textShadow = if (isHighlightActive && glowEnabled) {
         Shadow(color = Color(0xCCFFFFFF), blurRadius = 14f)
     } else null
 
     val wordAlpha = when {
-        isSinging || isSung -> 1.0f
+        isHighlightActive || isSung -> 1.0f
         else -> 0.38f
     }
 

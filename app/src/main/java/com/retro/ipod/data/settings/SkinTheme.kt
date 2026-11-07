@@ -6,5 +6,6 @@ package com.retro.ipod.data.settings
 enum class SkinTheme {
     CLASSIC_WHITE,
     U2_EDITION,
-    BRUSHED_ALUMINUM
+    BRUSHED_ALUMINUM,
+    CUSTOM
 }

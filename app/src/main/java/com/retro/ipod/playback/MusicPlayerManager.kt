@@ -22,6 +22,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -59,6 +60,19 @@ class MusicPlayerManager(
 
     init {
         initializeController()
+        scope.launch {
+            playbackState
+                .distinctUntilChanged { old, new ->
+                    old.currentSong?.id == new.currentSong?.id &&
+                    old.currentSong?.filePath == new.currentSong?.filePath &&
+                    old.isPlaying == new.isPlaying &&
+                    old.shuffleMode == new.shuffleMode &&
+                    old.repeatMode == new.repeatMode
+                }
+                .collect { state ->
+                    com.retro.ipod.widget.IpodWidgetProvider.updateAllWidgets(context, state)
+                }
+        }
     }
 
     private fun initializeController() {

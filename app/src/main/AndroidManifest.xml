@@ -44,6 +44,22 @@
             </intent-filter>
         </service>
 
+        <!-- Android Compact iPod Control Wheel Widget -->
+        <receiver
+            android:name=".widget.IpodWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.retro.ipod.widget.ACTION_PLAY_PAUSE" />
+                <action android:name="com.retro.ipod.widget.ACTION_PREV" />
+                <action android:name="com.retro.ipod.widget.ACTION_NEXT" />
+                <action android:name="com.retro.ipod.widget.ACTION_OPEN" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ipod_compact_widget_info" />
+        </receiver>
+
     </application>
 
 </manifest>

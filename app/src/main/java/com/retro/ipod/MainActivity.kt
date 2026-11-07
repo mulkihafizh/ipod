@@ -104,7 +104,11 @@ import com.retro.ipod.ui.nowplaying.IpodNowPlayingScreen
 import com.retro.ipod.ui.search.SearchScreen
 import com.retro.ipod.ui.settings.IpodSettingsListScreen
 import com.retro.ipod.ui.settings.SettingsRowItem
+import com.retro.ipod.ui.settings.UsbDacDetailsScreen
 import com.retro.ipod.ui.split.IpodSplitMenuScreen
+import com.retro.ipod.ui.sticker.PresetStickersPickerScreen
+import com.retro.ipod.ui.theme.CustomThemeEditorScreen
+import com.retro.ipod.ui.theme.ThemeSelectorScreen
 import com.retro.ipod.ui.wheel.ClickWheel
 import kotlinx.coroutines.launch
 
@@ -229,8 +233,7 @@ fun IpodMasterApp(
     val dacState by usbDacManager.dacState.collectAsState()
     val batteryState = rememberBatteryState()
 
-    // Modals & Navigation Stack State
-    var showDacModal by remember { mutableStateOf(false) }
+    // Navigation Stack State
     var currentScreen by remember { mutableStateOf<IpodScreen>(IpodScreen.MainMenu) }
     val backStack = remember { mutableStateListOf<IpodScreen>() }
 
@@ -304,7 +307,6 @@ fun IpodMasterApp(
     val stickersRepo = remember { StickersRepository(context) }
     val stickers by stickersRepo.stickersFlow.collectAsState()
     var isStickerEditMode by remember { mutableStateOf(false) }
-    var showPresetStickerDialog by remember { mutableStateOf(false) }
 
     val customStickerPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -707,92 +709,18 @@ fun IpodMasterApp(
         )
     }
 
-    if (showDacModal) {
-        DacHardwareDialog(
-            dacState = dacState,
-            onDismiss = { showDacModal = false },
-            onToggleExclusive = { enabled ->
-                usbDacManager.toggleExclusiveMode(enabled)
-            }
-        )
-    }
-
-    if (showPresetStickerDialog) {
-        val availablePresets = remember(context) { StickerPresets.getAllPresets(context) }
-        AlertDialog(
-            onDismissRequest = { showPresetStickerDialog = false },
-            containerColor = Color(0xFF1E1E26),
-            title = {
-                Text(
-                    text = "Choose Preset Sticker",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = AppFonts.helvetica(FontWeight.Bold)
-                )
-            },
-            text = {
-                LazyColumn(modifier = Modifier.height(300.dp)) {
-                    items(availablePresets) { preset ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    val added = stickersRepo.addPresetSticker(preset)
-                                    showPresetStickerDialog = false
-                                    if (added) {
-                                        Toast.makeText(context, "Applied '${preset.title}' sticker!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Max 3 stickers allowed", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                                .padding(vertical = 8.dp, horizontal = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(modifier = Modifier.size(46.dp), contentAlignment = Alignment.Center) {
-                                StickerGraphic(
-                                    sticker = IpodSticker(
-                                        id = "preview_${preset.id}",
-                                        type = preset.type,
-                                        presetId = preset.id,
-                                        assetPath = preset.assetPath
-                                    ),
-                                    baseSize = 42.dp
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = preset.title,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = preset.subtitle,
-                                    fontSize = 11.sp,
-                                    color = Color.Gray
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showPresetStickerDialog = false }) {
-                    Text("Cancel", color = Color.Gray)
-                }
-            }
-        )
-    }
-
-    // Skeuomorphic iPod Hardware Chassis
+    // Skeuomorphic iPod Hardware Chassis & Custom Theme configuration
     val activeSkin = settings?.skinTheme ?: SkinTheme.CLASSIC_WHITE
-    val screenPalette = remember(activeSkin) { com.retro.ipod.ui.theme.IpodScreenPalette.forTheme(activeSkin) }
+    val customSkinColor = Color(settings?.customSkinColor ?: 0xFF1976D2L)
+    val customWheelColor = Color(settings?.customWheelColor ?: 0xFFF9F9FAL)
+    val customScreenIsDark = settings?.customScreenIsDark ?: false
+    val screenPalette = remember(activeSkin, customScreenIsDark) {
+        com.retro.ipod.ui.theme.IpodScreenPalette.forTheme(activeSkin, customScreenIsDark)
+    }
 
     IpodChassis(
         theme = activeSkin,
+        customSkinColor = if (activeSkin == SkinTheme.CUSTOM) customSkinColor else null,
         stickersContent = {
             StickersLayer(
                 stickers = stickers,
@@ -854,7 +782,7 @@ fun IpodMasterApp(
                     shuffleMode = playbackState.shuffleMode,
                     repeatMode = playbackState.repeatMode,
                     palette = screenPalette,
-                    onDacBadgeClick = { showDacModal = true },
+                    onDacBadgeClick = { navigateTo(IpodScreen.UsbDacDetails) },
                     onHeaderClick = {
                         if (playbackState.isPlaying || playbackState.currentSong != null) {
                             when (currentScreen) {
@@ -1426,7 +1354,8 @@ fun IpodMasterApp(
                                 onArtistSelected = { artist ->
                                     navigateTo(IpodScreen.ArtistAlbums(artist = artist))
                                 },
-                                onClose = { popBack() }
+                                onClose = { popBack() },
+                                palette = screenPalette
                             )
                         }
 
@@ -1440,7 +1369,7 @@ fun IpodMasterApp(
                                 dacState = dacState,
                                 onSeekTo = { targetMs -> playerManager.seekTo(targetMs) },
                                 onOpenLyrics = { navigateTo(IpodScreen.LyricsScreen) },
-                                onDacBadgeClick = { showDacModal = true },
+                                onDacBadgeClick = { navigateTo(IpodScreen.UsbDacDetails) },
                                 palette = screenPalette,
                                 onToggleShuffle = { playerManager.toggleShuffle() },
                                 onCycleRepeat = { playerManager.cycleRepeatMode() },
@@ -1522,6 +1451,7 @@ fun IpodMasterApp(
                                     id = "theme",
                                     title = "Skin Theme",
                                     valueLabel = when (settings?.skinTheme) {
+                                        SkinTheme.CUSTOM -> "Custom Theme"
                                         SkinTheme.U2_EDITION -> "U2 Edition"
                                         SkinTheme.BRUSHED_ALUMINUM -> "Brushed Aluminum"
                                         else -> "Classic White"
@@ -1631,7 +1561,7 @@ fun IpodMasterApp(
                                     id = "dac_modal",
                                     title = "USB DAC Hardware Info",
                                     valueLabel = dacState.statusBadgeText,
-                                    onClick = { showDacModal = true }
+                                    onClick = { navigateTo(IpodScreen.UsbDacDetails) }
                                 )
                             )
                             activeItemCount = items.size
@@ -1701,50 +1631,52 @@ fun IpodMasterApp(
                         }
 
                         is IpodScreen.ThemeSettings -> {
-                            val currentSkin = settings?.skinTheme ?: SkinTheme.CLASSIC_WHITE
-
-                            val items = listOf(
-                                SettingsRowItem(
-                                    id = "classic",
-                                    title = "Classic White",
-                                    subtitle = "Apple Polycarbonate & Silver Chamfer",
-                                    valueLabel = if (currentSkin == SkinTheme.CLASSIC_WHITE) "ACTIVE" else "",
-                                    onClick = {
-                                        scope.launch { settingsRepo.setSkinTheme(SkinTheme.CLASSIC_WHITE) }
-                                    }
-                                ),
-                                SettingsRowItem(
-                                    id = "u2",
-                                    title = "U2 Special Edition",
-                                    subtitle = "Matte Black Body with Blood-Red Wheel",
-                                    valueLabel = if (currentSkin == SkinTheme.U2_EDITION) "ACTIVE" else "",
-                                    onClick = {
-                                        scope.launch { settingsRepo.setSkinTheme(SkinTheme.U2_EDITION) }
-                                    }
-                                ),
-                                SettingsRowItem(
-                                    id = "aluminum",
-                                    title = "Brushed Aluminum",
-                                    subtitle = "Titanium Anodized Aluminum & Space Gray",
-                                    valueLabel = if (currentSkin == SkinTheme.BRUSHED_ALUMINUM) "ACTIVE" else "",
-                                    onClick = {
-                                        scope.launch { settingsRepo.setSkinTheme(SkinTheme.BRUSHED_ALUMINUM) }
-                                    }
-                                )
-                            )
-                            activeItemCount = items.size
+                            val themesList = listOf(SkinTheme.CLASSIC_WHITE, SkinTheme.U2_EDITION, SkinTheme.BRUSHED_ALUMINUM, SkinTheme.CUSTOM)
+                            activeItemCount = themesList.size
                             activeSelectAction = {
-                                if (items.isNotEmpty() && activeHighlightedIndex in items.indices) {
-                                    items[activeHighlightedIndex].onClick()
+                                val selected = themesList.getOrNull(activeHighlightedIndex) ?: SkinTheme.CLASSIC_WHITE
+                                scope.launch { settingsRepo.setSkinTheme(selected) }
+                                if (selected == SkinTheme.CUSTOM) {
+                                    navigateTo(IpodScreen.CustomThemeEditor)
                                 }
                             }
 
-                            IpodSettingsListScreen(
-                                title = "Skin Themes",
-                                items = items,
-                                highlightedIndex = activeHighlightedIndex.coerceIn(0, items.size - 1),
-                                listState = listState,
-                                palette = screenPalette
+                            ThemeSelectorScreen(
+                                currentTheme = activeSkin,
+                                customSkinColor = customSkinColor,
+                                customWheelColor = customWheelColor,
+                                customScreenIsDark = customScreenIsDark,
+                                highlightedIndex = activeHighlightedIndex.coerceIn(0, themesList.size - 1),
+                                palette = screenPalette,
+                                onSelectTheme = { theme ->
+                                    scope.launch { settingsRepo.setSkinTheme(theme) }
+                                },
+                                onOpenCustomizer = {
+                                    navigateTo(IpodScreen.CustomThemeEditor)
+                                },
+                                onBack = { popBack() }
+                            )
+                        }
+
+                        is IpodScreen.CustomThemeEditor -> {
+                            activeItemCount = 0
+                            activeSelectAction = null
+
+                            CustomThemeEditorScreen(
+                                currentSkinColor = settings?.customSkinColor ?: 0xFF1976D2L,
+                                currentWheelColor = settings?.customWheelColor ?: 0xFFF9F9FAL,
+                                currentScreenIsDark = customScreenIsDark,
+                                palette = screenPalette,
+                                onSkinColorChange = { colorLong ->
+                                    scope.launch { settingsRepo.setCustomSkinColor(colorLong) }
+                                },
+                                onWheelColorChange = { colorLong ->
+                                    scope.launch { settingsRepo.setCustomWheelColor(colorLong) }
+                                },
+                                onScreenModeChange = { isDark ->
+                                    scope.launch { settingsRepo.setCustomScreenIsDark(isDark) }
+                                },
+                                onBack = { popBack() }
                             )
                         }
 
@@ -1776,7 +1708,7 @@ fun IpodMasterApp(
                                         title = "+ Add Preset Sticker",
                                         subtitle = "Rainbow Apple, Hi-Res, Advisory, Vinyl...",
                                         valueLabel = "${stickers.size}/3",
-                                        onClick = { showPresetStickerDialog = true }
+                                        onClick = { navigateTo(IpodScreen.PresetStickersPicker) }
                                     )
                                 )
                                 items.add(
@@ -1818,13 +1750,15 @@ fun IpodMasterApp(
                                     SettingsRowItem(
                                         id = "sticker_${st.id}_resize",
                                         title = "$stickerName: Size",
-                                        subtitle = "Tap to cycle: Small / Med / Large",
-                                        valueLabel = "${scalePercent}%",
+                                        subtitle = "Tap to cycle: 70% → 100% → 160% → 250% → 400% → 650%",
+                                        valueLabel = if (st.scale > 2.4f) "⚡ ${scalePercent}%" else "${scalePercent}%",
                                         onClick = {
                                             val nextScale = when {
                                                 st.scale < 0.85f -> 1.0f
-                                                st.scale < 1.2f -> 1.4f
-                                                st.scale < 1.6f -> 1.8f
+                                                st.scale < 1.3f -> 1.6f
+                                                st.scale < 2.0f -> 2.5f
+                                                st.scale < 3.2f -> 4.0f
+                                                st.scale < 5.2f -> 6.5f
                                                 else -> 0.7f
                                             }
                                             stickersRepo.updateSticker(st.copy(scale = nextScale))
@@ -1905,6 +1839,60 @@ fun IpodMasterApp(
                                 palette = screenPalette
                             )
                         }
+
+                        is IpodScreen.PresetStickersPicker -> {
+                            val presets = remember(context) { StickerPresets.getAllPresets(context) }
+                            activeItemCount = presets.size + 1
+                            activeSelectAction = {
+                                if (activeHighlightedIndex == 0) {
+                                    customStickerPickerLauncher.launch("image/*")
+                                } else {
+                                    val preset = presets.getOrNull(activeHighlightedIndex - 1)
+                                    if (preset != null) {
+                                        val added = stickersRepo.addPresetSticker(preset)
+                                        if (added) {
+                                            Toast.makeText(context, "Applied '${preset.title}' sticker!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Max 3 stickers allowed", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            }
+
+                            PresetStickersPickerScreen(
+                                activeStickers = stickers,
+                                highlightedIndex = activeHighlightedIndex.coerceIn(0, presets.size),
+                                palette = screenPalette,
+                                onSelectPreset = { preset ->
+                                    val added = stickersRepo.addPresetSticker(preset)
+                                    if (added) {
+                                        Toast.makeText(context, "Applied '${preset.title}' sticker!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Max 3 stickers allowed", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onPickCustomPhoto = {
+                                    customStickerPickerLauncher.launch("image/*")
+                                },
+                                onBack = { popBack() }
+                            )
+                        }
+
+                        is IpodScreen.UsbDacDetails -> {
+                            activeItemCount = 0
+                            activeSelectAction = {
+                                usbDacManager.toggleExclusiveMode(!dacState.isExclusiveModeEnabled)
+                            }
+
+                            UsbDacDetailsScreen(
+                                dacState = dacState,
+                                palette = screenPalette,
+                                onToggleExclusive = { enabled ->
+                                    usbDacManager.toggleExclusiveMode(enabled)
+                                },
+                                onBack = { popBack() }
+                            )
+                        }
                     }
                 }
             }
@@ -1915,6 +1903,7 @@ fun IpodMasterApp(
                 wheelSize = 220.dp,
                 centerButtonSize = 78.dp,
                 theme = activeSkin,
+                customWheelColor = if (activeSkin == SkinTheme.CUSTOM) customWheelColor else null,
                 hapticEnabled = settings?.hapticFeedbackEnabled ?: true,
                 onRotateStep = { isClockwise ->
                     when (currentScreen) {
@@ -2146,80 +2135,4 @@ fun IpodMiniHeaderBar(
     }
 }
 
-@Composable
-fun DacHardwareDialog(
-    dacState: UsbDacState,
-    onDismiss: () -> Unit,
-    onToggleExclusive: (Boolean) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1E1E26),
-        title = {
-            Text(
-                text = "USB DAC HARDWARE DETAILS",
-                color = Color(0xFFFFD54F),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DetailRow("Route", if (dacState.isClaimed) "Bit-Perfect USB DAC" else "Android Direct HAL")
-                DetailRow("Device Name", if (dacState.deviceName.isNotBlank() && !dacState.deviceName.equals("DIRECT", ignoreCase = true) && !dacState.deviceName.equals("Internal DAC", ignoreCase = true)) dacState.deviceName else "DIRECT (Internal Audio)")
-                if (dacState.vendorId != 0) {
-                    DetailRow("USB Vendor/Product", "VID: 0x${dacState.vendorId.toString(16).uppercase()} | PID: 0x${dacState.productId.toString(16).uppercase()}")
-                }
-                DetailRow("Streaming Interface", if (dacState.hasAudioStreamingInterface) "UAC 2.0 Detected" else "Standard AudioTrack")
-                DetailRow("Oboe C++ Pipeline", if (NativeAudioBridge.isLoaded()) "Oboe ${NativeAudioBridge.getOboeVersion()}" else "Direct High-Res HAL")
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Bit-Perfect Exclusive",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Bypass Android AudioFlinger mixer",
-                            color = Color(0xFF9E9E9E),
-                            fontSize = 9.sp
-                        )
-                    }
-
-                    Switch(
-                        checked = dacState.isExclusiveModeEnabled,
-                        onCheckedChange = { onToggleExclusive(it) },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color(0xFFFFD54F),
-                            checkedTrackColor = Color(0xFF332D15)
-                        )
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = "Close", color = Color(0xFF4FC3F7))
-            }
-        }
-    )
-}
-
-@Composable
-fun DetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(text = label, color = Color(0xFF8E8E93), fontSize = 11.sp)
-        Text(text = value, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-    }
-}

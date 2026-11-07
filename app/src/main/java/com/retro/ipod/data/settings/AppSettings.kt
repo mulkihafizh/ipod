@@ -2,7 +2,7 @@ package com.retro.ipod.data.settings
 
 /**
  * Persisted application configuration and user preferences for audio output,
- * lyrics rendering, and retro aesthetics.
+ * lyrics rendering, theme customizations, and retro aesthetics.
  */
 data class AppSettings(
     val usbExclusiveMode: Boolean = false,
@@ -15,5 +15,8 @@ data class AppSettings(
     val skinTheme: SkinTheme = SkinTheme.CLASSIC_WHITE,
     val hapticFeedbackEnabled: Boolean = true,
     val musicFolderPath: String? = null,
-    val musicFolderUri: String? = null
+    val musicFolderUri: String? = null,
+    val customSkinColor: Long = 0xFF1976D2L, // Cobalt Blue default
+    val customWheelColor: Long = 0xFFF9F9FAL, // White wheel default
+    val customScreenIsDark: Boolean = false // false = Light LCD, true = Dark LCD
 )

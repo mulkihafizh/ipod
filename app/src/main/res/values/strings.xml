@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Retro iPod</string>
+    <string name="widget_description">iPod Mini Player with Click Wheel</string>
 </resources>

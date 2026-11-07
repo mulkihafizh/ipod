@@ -1,5 +1,6 @@
 package com.retro.ipod.ui.sticker
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -102,15 +103,33 @@ fun AssetImageStickerView(assetPath: String) {
     }
 }
 
+private fun decodeOptimizedStickerBitmap(filePath: String, maxDim: Int = 720): Bitmap? {
+    return try {
+        val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(filePath, boundsOpts)
+        val (h, w) = boundsOpts.outHeight to boundsOpts.outWidth
+        if (h <= 0 || w <= 0) return null
+
+        var sampleSize = 1
+        if (h > maxDim || w > maxDim) {
+            val halfH = h / 2
+            val halfW = w / 2
+            while (halfH / sampleSize >= maxDim && halfW / sampleSize >= maxDim) {
+                sampleSize *= 2
+            }
+        }
+        val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        BitmapFactory.decodeFile(filePath, decodeOpts)
+    } catch (_: Exception) {
+        null
+    }
+}
+
 @Composable
 fun CustomImageStickerView(filePath: String?) {
     val bitmap = remember(filePath) {
         if (!filePath.isNullOrBlank() && File(filePath).exists()) {
-            try {
-                BitmapFactory.decodeFile(filePath)?.asImageBitmap()
-            } catch (_: Exception) {
-                null
-            }
+            decodeOptimizedStickerBitmap(filePath, maxDim = 720)?.asImageBitmap()
         } else null
     }
 

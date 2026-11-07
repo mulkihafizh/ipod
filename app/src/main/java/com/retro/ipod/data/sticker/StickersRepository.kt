@@ -1,11 +1,15 @@
 package com.retro.ipod.data.sticker
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,6 +40,7 @@ class StickersRepository(private val context: Context) {
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var persistJob: Job? = null
     private val _stickersFlow = MutableStateFlow<List<IpodSticker>>(emptyList())
     val stickersFlow: StateFlow<List<IpodSticker>> = _stickersFlow.asStateFlow()
 
@@ -75,7 +80,7 @@ class StickersRepository(private val context: Context) {
                 val customPath = if (obj.has("customImagePath")) obj.getString("customImagePath") else null
                 val normX = obj.optDouble("normalizedX", 0.5).toFloat()
                 val normY = obj.optDouble("normalizedY", 0.48).toFloat()
-                val scale = obj.optDouble("scale", 1.0).toFloat().coerceIn(0.4f, 2.5f)
+                val scale = obj.optDouble("scale", 1.0).toFloat().coerceIn(0.35f, 8.5f)
                 val rotation = obj.optDouble("rotation", 0.0).toFloat()
 
                 // Validate custom file existence
@@ -166,6 +171,7 @@ class StickersRepository(private val context: Context) {
 
     /**
      * Imports an image from a content URI into local filesDir and adds it as a custom sticker.
+     * Automatically downsamples large high-megapixel photos to an optimized 1024px PNG to conserve RAM and flash memory.
      */
     fun addCustomStickerFromUri(uri: Uri): Boolean {
         val current = _stickersFlow.value.toMutableList()
@@ -174,12 +180,39 @@ class StickersRepository(private val context: Context) {
         val savedPath = try {
             val fileName = "sticker_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}.png"
             val destFile = File(getStickersDir(), fileName)
+
+            // Probe image dimensions first
+            val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             context.contentResolver.openInputStream(uri)?.use { input ->
-                FileOutputStream(destFile).use { output ->
-                    input.copyTo(output)
+                BitmapFactory.decodeStream(input, null, boundsOptions)
+            }
+
+            val maxDim = 1024
+            val (h, w) = boundsOptions.outHeight to boundsOptions.outWidth
+            var sampleSize = 1
+            if (h > maxDim || w > maxDim) {
+                val halfH = h / 2
+                val halfW = w / 2
+                while (halfH / sampleSize >= maxDim && halfW / sampleSize >= maxDim) {
+                    sampleSize *= 2
                 }
             }
-            destFile.absolutePath
+
+            // Decode downsampled bitmap
+            val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            val sampledBmp = context.contentResolver.openInputStream(uri)?.use { input ->
+                BitmapFactory.decodeStream(input, null, decodeOptions)
+            }
+
+            if (sampledBmp != null) {
+                FileOutputStream(destFile).use { output ->
+                    sampledBmp.compress(Bitmap.CompressFormat.PNG, 95, output)
+                }
+                sampledBmp.recycle()
+                destFile.absolutePath
+            } else {
+                null
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error importing custom sticker image", e)
             null
@@ -203,13 +236,23 @@ class StickersRepository(private val context: Context) {
 
     /**
      * Updates an existing sticker's position or scale.
+     * Persistence to flash storage is debounced (350ms) to eliminate high-frequency disk I/O thrashing during gestures.
      */
-    fun updateSticker(updated: IpodSticker) {
+    fun updateSticker(updated: IpodSticker, persistImmediately: Boolean = false) {
         val current = _stickersFlow.value.map {
             if (it.id == updated.id) updated else it
         }
         _stickersFlow.value = current
-        scope.launch { persistStickers(current) }
+
+        persistJob?.cancel()
+        if (persistImmediately) {
+            scope.launch { persistStickers(current) }
+        } else {
+            persistJob = scope.launch {
+                delay(350L)
+                persistStickers(current)
+            }
+        }
     }
 
     /**
